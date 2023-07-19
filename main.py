@@ -1,131 +1,52 @@
-import os
-
-import click
-import pyperclip
+import streamlit as st
 import openai
+from textblob import TextBlob
 
-from rich import print as rprint
+def correct_spelling(input_text):
+    blob = TextBlob(input_text)
+    return str(blob.correct())
 
+def chat_with_gpt(input_topic):
+    # Correct the input sentence for spelling and grammar
+    corrected_topic = correct_spelling(input_topic)
 
-def verify_api_key(api_key):
-    """
-    Verify that the API key is provided.
-    """
-    if api_key is None:
-        raise Exception("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")
-    else:
-        return api_key
+    # Make API call to ChatGPT
+    api_key = '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'  # Replace this with your actual API key
+    openai.api_key = api_key
 
+    system_message = "You are an expert in this field. Please provide a concise and accurate answer."
+    prompt = f"{system_message}\n\n{corrected_topic}"
 
-def verify_text_length(text):
-    """
-    Verify that the text is less than 1900 tokens,
-    as the output will also require around 1900 tokens.
-    From the OpenAI documentation:
-    https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
-    1 token ~= 4 chars in English
-    """
-    if len(text) / 4 > 1900:
-        paragraphs = text.split("\n\n")
-        chunks = list()
-        chunks.append(str())
-        # Squeeze in as many paragraphs as possible in a single chunk
-        for paragraph in paragraphs:
-            if len(paragraph) / 4 > 1900:
-                raise Exception(
-                    "Text is too long. Please keep each paragraph under 1900 tokens or 7600 characters."
-                    "If you have a lot of text, please split it into multiple paragraphs."
-                    "Each paragraph should be separated by a newline."
-                )
-            if len(chunks[-1]) / 4 <= 1900:
-                chunks[-1] += " \n\n " + paragraph
-            else:
-                chunks.append(paragraph)
-        return chunks
-    return [text]
-
-
-@click.command()
-@click.option(
-    "--text",
-    prompt="Text",
-    prompt_required=False,
-    help="Text input for grammar correction",
-    default=lambda: pyperclip.paste(),
-)
-@click.option(
-    "--api_key", help="OpenAI API Key", default=lambda: os.environ.get("OPENAI_API_KEY")
-)
-@click.option(
-    "--tone",
-    help="Tone of the grammar correction",
-    default="social media",
-    show_default=True,
-)
-@click.option(
-    "--simplify",
-    help="Simplify the text",
-    default=False,
-    show_default=True,
-    is_flag=True,
-)
-@click.option(
-    "--input_format",
-    "-i",
-    help="Specify the input format",
-    default="text",
-    show_default=True,
-)
-@click.option(
-    "--output_format",
-    "-o",
-    help="Specify the output format",
-    default="text",
-    show_default=True,
-)
-def grammatical(text, api_key, tone, simplify, input_format, output_format):
-    """
-    Corrects the spelling and grammar of the text.
-    """
-    openai.api_key = verify_api_key(api_key)
-    chunks = verify_text_length(text)
-    modified_texts = list()
-    for chunk in chunks:
-        simplify_text = (
-            "Can you also simplify the complex sentences "
-            "for better clarity? Keep the meaning intact."
-            if simplify
-            else ""
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=100,
+            temperature=0.2,
         )
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Can you improve the grammar of the following text?"
-                    f"And correct the spelling of the words, if necessary?"
-                    f"{simplify_text}"
-                    f"I need it for {tone}, so keep the tone specific to that."
-                    f"The input format of the text is {input_format}"
-                    f" and I want the output format to be {output_format}."
-                    f"\n\n Text is: {chunk}",
-                },
-            ],
-        )
-        resp = response.choices[0]["message"]["content"]
-        modified_texts.append(resp)
-    rich_print("\n\n".join(modified_texts))
 
+        if response and 'choices' in response and len(response['choices']) > 0:
+            answer = response['choices'][0]['text'].strip()
+            return answer
+    except Exception as e:
+        st.error(f"Error in API call: {e}")
 
-def rich_print(text):
-    """
-    Print the text in a rich format.
-    """
-    text = text.strip()
-    pyperclip.copy(text)
-    rprint(f"[italic red]Modified Text:[/italic red] \n {text}")
-    rprint(f"[italic red]Text copied to clipboard.[/italic red]")
+    return "Error in API call. Please try again later."
 
+def main():
+    st.title("Chatbot with GPT-3.5 API and Spell Check")
+
+    # Get the input topic from the user
+    input_topic = st.text_input("Enter your topic:")
+
+    if st.button("Get Answer"):
+        if input_topic:
+            # Chat with GPT and get the answer
+            answer = chat_with_gpt(input_topic)
+            st.subheader("Answer (less than 100 words):")
+            st.write(answer)
+        else:
+            st.warning("Please enter a topic to get an answer.")
 
 if __name__ == "__main__":
-    grammatical()
+    main()
