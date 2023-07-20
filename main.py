@@ -11,7 +11,7 @@ def chat_with_gpt(input_topic):
     corrected_topic = correct_spelling(input_topic)
 
     # Make API call to ChatGPT
-    api_key = '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'  # Replace this with your actual API key
+    api_key =   # Replace this with your actual API key
     openai.api_key = api_key
 
     system_message = "You are an expert in this field. Please provide a concise and accurate answer."
